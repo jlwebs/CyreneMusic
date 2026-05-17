@@ -7,6 +7,23 @@ val keystoreProperties = Properties().apply {
         load(FileInputStream(keystorePropertiesFile))
     }
 }
+fun keystoreProperty(name: String): String? =
+    keystoreProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+
+val defaultKeystoreFile = rootProject.file("cyrene-release.jks")
+val configuredStoreFile = keystoreProperty("storeFile")?.let { rootProject.file(it) }
+val resolvedStoreFile = when {
+    configuredStoreFile?.exists() == true -> configuredStoreFile
+    defaultKeystoreFile.exists() -> defaultKeystoreFile
+    else -> null
+}
+val releaseStorePassword = keystoreProperty("storePassword")
+val releaseKeyAlias = keystoreProperty("keyAlias")
+val releaseKeyPassword = keystoreProperty("keyPassword")
+val hasReleaseSigning = resolvedStoreFile != null
+    && releaseStorePassword != null
+    && releaseKeyAlias != null
+    && releaseKeyPassword != null
 
 plugins {
     id("com.android.application")
@@ -46,25 +63,12 @@ android {
 
     signingConfigs {
         create("release") {
-            // 优先使用 key.properties 中的配置，如果不存在则使用默认的 cyrene-release.jks
-            val defaultKeystoreFile = rootProject.file("cyrene-release.jks")
-            val storeFileValue = keystoreProperties["storeFile"]?.takeIf { it.toString().isNotBlank() }
-                ?: if (defaultKeystoreFile.exists()) "cyrene-release.jks" else null
-            
-            if (storeFileValue != null) {
-                storeFile = rootProject.file(storeFileValue)
-            }
-            
-            // 从 key.properties 读取密码和别名信息
-            // 如果 key.properties 不存在，这些值将为空，构建会失败并提示需要配置签名信息
-            keystoreProperties["storePassword"]?.takeIf { it.toString().isNotBlank() }?.let { 
-                storePassword = it.toString() 
-            }
-            keystoreProperties["keyAlias"]?.takeIf { it.toString().isNotBlank() }?.let { 
-                keyAlias = it.toString() 
-            }
-            keystoreProperties["keyPassword"]?.takeIf { it.toString().isNotBlank() }?.let { 
-                keyPassword = it.toString() 
+            // 只有在签名信息完整时才启用 release keystore，否则回退到 debug signing。
+            if (hasReleaseSigning) {
+                storeFile = resolvedStoreFile
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }
@@ -77,9 +81,12 @@ android {
         }
 
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("release")
+            // key.properties 或 CI secrets 不完整时，使用 debug signing，避免 packageRelease 因缺少密码失败。
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             manifestPlaceholders["appName"] = "Cyrene Music"
         }
     }

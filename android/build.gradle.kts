@@ -1,12 +1,12 @@
 allprojects {
     repositories {
-        // 阿里云镜像（加速国内下载）
+        // CI 优先走官方源，避免镜像波动导致依赖解析失败。
+        google()
+        mavenCentral()
+        // 本地仍保留阿里云镜像作为兜底。
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         maven { url = uri("https://maven.aliyun.com/repository/public") }
         maven { url = uri("https://maven.aliyun.com/repository/central") }
-        
-        google()
-        mavenCentral()
     }
 }
 

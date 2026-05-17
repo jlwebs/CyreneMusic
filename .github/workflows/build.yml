@@ -49,15 +49,24 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Restore keystore and key properties
+        env:
+          CYRENE_KEYSTORE_BASE64: ${{ secrets.CYRENE_KEYSTORE_BASE64 }}
+          CYRENE_KEYSTORE_PASSWORD: ${{ secrets.CYRENE_KEYSTORE_PASSWORD }}
+          CYRENE_KEY_ALIAS: ${{ secrets.CYRENE_KEY_ALIAS }}
+          CYRENE_KEY_PASSWORD: ${{ secrets.CYRENE_KEY_PASSWORD }}
         run: |
-          mkdir -p android/keys
-          echo "${{ secrets.CYRENE_KEYSTORE_BASE64 }}" | base64 --decode > android/keys/cyrene-release.jks
-          cat <<'EOF' > android/key.properties
-          storeFile=keys/cyrene-release.jks
-          storePassword=${{ secrets.CYRENE_KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.CYRENE_KEY_ALIAS }}
-          keyPassword=${{ secrets.CYRENE_KEY_PASSWORD }}
-          EOF
+          if [ -n "$CYRENE_KEYSTORE_BASE64" ] && [ -n "$CYRENE_KEYSTORE_PASSWORD" ] && [ -n "$CYRENE_KEY_ALIAS" ] && [ -n "$CYRENE_KEY_PASSWORD" ]; then
+            mkdir -p android/keys
+            printf '%s' "$CYRENE_KEYSTORE_BASE64" | base64 --decode > android/keys/cyrene-release.jks
+            printf '%s\n' \
+              "storeFile=keys/cyrene-release.jks" \
+              "storePassword=$CYRENE_KEYSTORE_PASSWORD" \
+              "keyAlias=$CYRENE_KEY_ALIAS" \
+              "keyPassword=$CYRENE_KEY_PASSWORD" \
+              > android/key.properties
+          else
+            echo "Release signing secrets are incomplete; Android release APK will use debug signing."
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v4
