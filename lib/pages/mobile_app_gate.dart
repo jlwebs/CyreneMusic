@@ -8,7 +8,7 @@ import 'mobile_setup_page.dart';
 
 /// 移动端应用入口控制器
 /// 
-/// 根据音源配置和登录状态决定显示引导页还是主布局。
+/// 根据音源配置、协议确认状态和本地模式决定显示引导页还是主布局。
 /// 使用内部状态管理避免重建 Navigator。
 class MobileAppGate extends StatefulWidget {
   const MobileAppGate({super.key});
@@ -41,12 +41,11 @@ class _MobileAppGateState extends State<MobileAppGate> {
   @override
   Widget build(BuildContext context) {
     final isConfigured = AudioSourceService().isConfigured;
-    final isLoggedIn = AuthService().isLoggedIn;
     final isTermsAccepted = PersistentStorageService().getBool('terms_accepted') ?? false;
     final isLocalMode = PersistentStorageService().enableLocalMode;
 
-    // 音源配置、登录以及协议确认都完成后，显示主布局；或者开启了本地模式且已确认协议
-    if ((isConfigured && isLoggedIn && isTermsAccepted) || (isLocalMode && isTermsAccepted)) {
+    // 完成协议确认并配置音源后即可进入主布局；本地模式同样只要求确认协议
+    if ((isConfigured && isTermsAccepted) || (isLocalMode && isTermsAccepted)) {
       return const MainLayout();
     }
 

@@ -13,7 +13,7 @@ import 'auth/fluent_auth_page.dart';
 
 /// 桌面端初始配置引导页
 /// 
-/// 多步引导流程：主题设置 → 配置音源 → 登录 → 确认协议 → 进入主应用
+/// 多步引导流程：主题设置 → 配置音源 → 可选登录 → 确认协议 → 进入主应用
 class DesktopSetupPage extends StatefulWidget {
   const DesktopSetupPage({super.key});
 
@@ -26,7 +26,7 @@ class _DesktopSetupPageState extends State<DesktopSetupPage> with WindowListener
   /// 0 = 欢迎/引导中转
   /// 1 = 主题设置中
   /// 2 = 音源配置中
-  /// 3 = 登录中
+  /// 3 = 可选登录中
   /// 4 = 协议确认中
   /// 5 = 配置完成 (成功页)
   int _currentStep = 0;
@@ -283,11 +283,12 @@ class _DesktopSetupPageState extends State<DesktopSetupPage> with WindowListener
       buttonText = '配置音源';
       onButtonPressed = () => setState(() => _currentStep = 2);
     } else if (!isLoggedIn) {
-      // 第三步：登录
+      // 音源已完成，登录改为可选
       title = '音源配置完成 ✓';
-      subtitle = '登录账号以同步您的收藏和播放记录';
-      buttonText = '登录 / 注册';
-      onButtonPressed = () => setState(() => _currentStep = 3);
+      subtitle = '现在可以直接进入应用；登录仅用于同步收藏和播放记录';
+      buttonText = '进入应用';
+      onButtonPressed = () => _enterFullApp();
+      showSkip = false;
     } else {
       // 全部完成，进入成功页
       title = '准备就绪!';
@@ -444,10 +445,10 @@ class _DesktopSetupPageState extends State<DesktopSetupPage> with WindowListener
               ? (isDark ? Colors.white54 : Colors.black38)
               : (isDark ? Colors.white24 : Colors.black12),
         ),
-        // 音源/登录合并步骤展示（或根据需要细化）
+        // 音源配置完成即可通过初始化流程
         _buildStepDot(
-          isCompleted: audioConfigured && isLoggedIn,
-          isCurrent: themeConfigured && (PersistentStorageService().getBool('terms_accepted') ?? false) && (!audioConfigured || !isLoggedIn),
+          isCompleted: audioConfigured,
+          isCurrent: themeConfigured && (PersistentStorageService().getBool('terms_accepted') ?? false) && !audioConfigured,
           isDark: isDark,
           currentStepColor: accentColor,
         ),
@@ -902,7 +903,7 @@ class _DesktopSetupPageState extends State<DesktopSetupPage> with WindowListener
               ),
               const SizedBox(width: 8),
               Text(
-                '登录',
+                '登录（可选）',
                 style: theme.typography.subtitle,
               ),
             ],
@@ -1086,16 +1087,7 @@ class _DesktopSetupPageState extends State<DesktopSetupPage> with WindowListener
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: fluent.FilledButton(
-                  onPressed: () async {
-                    // 记录最终标记
-                    final storage = PersistentStorageService();
-                    // 退出本地模式
-                    await storage.setEnableLocalMode(false);
-                    
-                    // 触发监听以切换 AppGate
-                    AudioSourceService().notifyListeners();
-                    AuthService().notifyListeners();
-                  },
+                  onPressed: _enterFullApp,
                   child: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
                     child: Text(
@@ -1150,7 +1142,7 @@ class _DesktopSetupPageState extends State<DesktopSetupPage> with WindowListener
     if (!audioConfigured) {
       message = '不配置音源将无法播放在线音乐。您可以稍后在设置中配置。';
     } else {
-      message = '不登录将无法同步收藏和播放记录。您可以稍后在设置中登录。';
+      message = '不登录将跳过云同步功能，但仍可直接进入应用。您可以稍后在设置中登录。';
     }
 
     fluent.showDialog(
@@ -1183,6 +1175,14 @@ class _DesktopSetupPageState extends State<DesktopSetupPage> with WindowListener
     await storage.setEnableLocalMode(false);
     
     // 通知跳过 - 触发状态更新来进入主应用
+    AudioSourceService().notifyListeners();
+    AuthService().notifyListeners();
+  }
+
+  Future<void> _enterFullApp() async {
+    final storage = PersistentStorageService();
+    await storage.setEnableLocalMode(false);
+
     AudioSourceService().notifyListeners();
     AuthService().notifyListeners();
   }

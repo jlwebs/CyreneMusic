@@ -10,7 +10,7 @@ import 'auth/auth_page.dart';
 
 /// 移动端初始配置引导页
 /// 
-/// 多步引导流程：主题选择 → 配置音源 → 登录 → 进入主应用
+/// 多步引导流程：主题选择 → 协议确认 → 配置音源 → 可选登录 → 进入主应用
 class MobileSetupPage extends StatefulWidget {
   const MobileSetupPage({super.key});
 
@@ -24,7 +24,7 @@ class _MobileSetupPageState extends State<MobileSetupPage> {
   /// 1 = 协议确认
   /// 2 = 欢迎/引导中转（音源/登录入口）
   /// 3 = 音源配置中
-  /// 4 = 登录中
+  /// 4 = 可选登录中
   /// 5 = 配置完成 (成功页)
   int _currentStep = 0;
   
@@ -353,11 +353,12 @@ class _MobileSetupPageState extends State<MobileSetupPage> {
       buttonText = '配置音源';
       onButtonPressed = () => setState(() => _currentStep = 3);
     } else if (!isLoggedIn) {
-      // 第二步：登录
+      // 音源已完成，登录改为可选
       title = '音源配置完成 ✓';
-      subtitle = '登录账号以同步您的收藏和播放记录';
-      buttonText = '登录 / 注册';
-      onButtonPressed = () => setState(() => _currentStep = 4);
+      subtitle = '现在可以直接进入应用；登录仅用于同步收藏和播放记录';
+      buttonText = '进入应用';
+      onButtonPressed = () => _enterFullApp();
+      showSkip = false;
     } else {
       // 全部完成（理论上不会到达这里，因为 main.dart 会跳转）
       title = '准备就绪!';
@@ -513,10 +514,10 @@ class _MobileSetupPageState extends State<MobileSetupPage> {
               ? (isDark ? Colors.white54 : Colors.black38)
               : (isDark ? Colors.white24 : Colors.black12),
         ),
-        // 音源/登录步骤（合并展示或作为主流程）
+        // 音源配置完成即可通过初始化流程
         _buildStepDot(
-          isCompleted: audioConfigured && isLoggedIn,
-          isCurrent: themeSelected && (PersistentStorageService().getBool('terms_accepted') ?? false) && (!audioConfigured || !isLoggedIn),
+          isCompleted: audioConfigured,
+          isCurrent: themeSelected && (PersistentStorageService().getBool('terms_accepted') ?? false) && !audioConfigured,
           isDark: isDark,
           currentStepColor: currentStepColor,
         ),
@@ -565,7 +566,7 @@ class _MobileSetupPageState extends State<MobileSetupPage> {
                 onPressed: () => setState(() => _currentStep = 2),
                 child: const Icon(CupertinoIcons.back),
               ),
-              middle: const Text('登录'),
+              middle: const Text('登录（可选）'),
               backgroundColor: Colors.transparent,
               border: null,
             ) as PreferredSizeWidget?
@@ -574,7 +575,7 @@ class _MobileSetupPageState extends State<MobileSetupPage> {
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => setState(() => _currentStep = 2),
               ),
-              title: const Text('登录'),
+              title: const Text('登录（可选）'),
               backgroundColor: Colors.transparent,
               elevation: 0,
             ),
@@ -628,7 +629,7 @@ class _MobileSetupPageState extends State<MobileSetupPage> {
     if (!audioConfigured) {
       message = '不配置音源将无法播放在线音乐。您可以稍后在设置中配置。';
     } else {
-      message = '不登录将无法同步收藏和播放记录。您可以稍后在设置中登录。';
+      message = '不登录将跳过云同步功能，但仍可直接进入应用。您可以稍后在设置中登录。';
     }
 
     if (isCupertino) {
@@ -867,16 +868,7 @@ class _MobileSetupPageState extends State<MobileSetupPage> {
                 context, 
                 isCupertino, 
                 '进入应用', 
-                () async {
-                  // 记录最终标记（已由 terms_accepted 等驱动）
-                  final storage = PersistentStorageService();
-                  // 退出本地模式，显示全功能界面
-                  await storage.setEnableLocalMode(false);
-                  
-                  // 触发监听以切换 MobileAppGate
-                  AudioSourceService().notifyListeners();
-                  AuthService().notifyListeners();
-                }
+                _enterFullApp
               ),
             ),
             const SizedBox(height: 48),
@@ -921,6 +913,14 @@ class _MobileSetupPageState extends State<MobileSetupPage> {
     await storage.setEnableLocalMode(false);
     
     // 通知跳过 - 触发 main.dart 中的状态更新来进入主应用
+    AudioSourceService().notifyListeners();
+    AuthService().notifyListeners();
+  }
+
+  Future<void> _enterFullApp() async {
+    final storage = PersistentStorageService();
+    await storage.setEnableLocalMode(false);
+
     AudioSourceService().notifyListeners();
     AuthService().notifyListeners();
   }
